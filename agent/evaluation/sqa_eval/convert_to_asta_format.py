@@ -151,29 +151,35 @@ def parse_answer(sample: str) -> List[Dict[str, Any]]:
 
     return sections
 
-parser = argparse.ArgumentParser(description="Convert files to ASTA format")
-parser.add_argument('--folder', type=str, required=True, help='Path to the folder where eval file is stored')
-parser.add_argument('--file', type=str, required=True, help='Name of the eval file')
-args = parser.parse_args()
-folder = args.folder
-file = args.file
+def main():
+    parser = argparse.ArgumentParser(description="Convert DR Tulu output files to ASTA format for SQA evaluation")
+    parser.add_argument('--folder', type=str, required=True, help='Path to the folder where eval file is stored')
+    parser.add_argument('--file', type=str, required=True, help='Name of the eval file')
+    args = parser.parse_args()
+    folder = args.folder
+    file = args.file
 
-print(f"Processing file: {file}")
-# read data
-file_path = os.path.join(folder, file)
-data = []
+    print(f"Processing file: {file}")
+    # read data
+    file_path = os.path.join(folder, file)
+    data = []
 
-with open(file_path, 'r') as f:
-    for line in f:
-        data.append(json.loads(line))
+    with open(file_path, 'r') as f:
+        for line in f:
+            data.append(json.loads(line))
 
-formatted = []
-for sample in data:
-    parsed = parse_answer(sample)
-    formatted.append({"question": sample['problem'], "response": {"sections": parsed}})
+    formatted = []
+    for sample in data:
+        parsed = parse_answer(sample)
+        formatted.append({"question": sample['problem'], "response": {"sections": parsed}})
+
+    # write formatted data to a json file
+    out_file = file_path.replace(".jsonl", "_asta_format.jsonl")
+    with open(out_file, "w") as f:
+        json.dump(formatted, f, indent=4)
+
+    print(f"Converted {len(formatted)} samples -> {out_file}")
 
 
-# write formatted data to a json file
-out_file = file_path.replace(".jsonl", "_asta_format.jsonl")
-with open(out_file, "w") as f:
-    json.dump(formatted, f, indent=4)
+if __name__ == "__main__":
+    main()

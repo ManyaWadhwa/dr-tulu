@@ -63,11 +63,117 @@ for task in healthbench deep_research_bench research_qa genetic_diseases simpleq
 done
 ```
 
-For SQA-CS-V2 evaluation, see the dedicated section below.
+For SQA-CS-V2 and Deep Research Bench evaluations, see the dedicated sections below.
 
 ---
 
-## Additional instructions on SQA-CS-V2 Evaluation
+## Deep Research Bench (DRB) Evaluation — Self-Contained
+
+DRB evaluation measures deep research report quality using two metrics:
+- **RACE**: Reference-based and Adaptive Criteria-driven Evaluation (article quality)
+- **FACT**: Factual Abundance and Citation Trustworthiness (citation verification)
+
+### Prerequisites
+
+```bash
+pip install google-genai tqdm
+export GEMINI_API_KEY="your_gemini_api_key_here"
+```
+
+### Quick Start (Self-Contained — No External Repo Needed)
+
+```bash
+# Full pipeline: format conversion + RACE + FACT evaluation
+python evaluation/deep_research_bench_eval/run_eval.py \
+    --input_file eval_output/auto_search_sft/deep_research_bench.jsonl \
+    --task_name my_model
+
+# RACE only (skip FACT):
+python evaluation/deep_research_bench_eval/run_eval.py \
+    --input_file eval_output/auto_search_sft/deep_research_bench.jsonl \
+    --task_name my_model --skip_fact
+
+# FACT only (skip RACE):
+python evaluation/deep_research_bench_eval/run_eval.py \
+    --input_file eval_output/auto_search_sft/deep_research_bench.jsonl \
+    --task_name my_model --skip_race
+
+# Test with limit:
+python evaluation/deep_research_bench_eval/run_eval.py \
+    --input_file eval_output/auto_search_sft/deep_research_bench.jsonl \
+    --task_name my_model --limit 2
+
+# English only:
+python evaluation/deep_research_bench_eval/run_eval.py \
+    --input_file eval_output/auto_search_sft/deep_research_bench.jsonl \
+    --task_name my_model --only_en
+```
+
+### Or via the unified evaluate.py script
+
+```bash
+python scripts/evaluate.py deep_research_bench eval_output/auto_search_sft/deep_research_bench.jsonl
+```
+
+### Output Structure
+
+```
+<output_dir>/
+├── raw_data/<task_name>.jsonl          # Formatted articles
+├── cleaned_data/<task_name>.jsonl      # Cleaned articles (citations removed)
+├── race/<task_name>/
+│   ├── raw_results.jsonl               # Per-item RACE scores
+│   └── race_result.txt                 # Aggregated RACE metrics
+└── fact/<task_name>/
+    ├── scraped.jsonl                   # Articles with scraped citation content
+    ├── validated.jsonl                 # Validated citations
+    └── fact_result.txt                 # Aggregated FACT metrics
+```
+
+---
+
+## SQA-CS-V2 Evaluation — Self-Contained
+
+SQA-CS-V2 evaluates scientific question answering with structured citations.
+
+### Prerequisites
+
+```bash
+pip install astabench==0.3.1 inspect_ai datasets
+export GOOGLE_API_KEY="your_google_api_key_here"
+export HF_TOKEN="your_hf_token_here"   # Can be dummy if not downloading data
+```
+
+### Quick Start (Self-Contained — No External Repo Needed)
+
+```bash
+# Full pipeline: convert + evaluate
+python evaluation/sqa_eval/run_eval.py run \
+    --input_file eval_output/auto_search_sft/sqa_cs_v2.jsonl
+
+# Step-by-step:
+# 1. Convert DR Tulu output to ASTA format
+python evaluation/sqa_eval/run_eval.py convert \
+    --input_file eval_output/auto_search_sft/sqa_cs_v2.jsonl
+
+# 2. Run evaluation
+python evaluation/sqa_eval/run_eval.py eval \
+    --input_file eval_output/auto_search_sft/sqa_cs_v2_asta_format.jsonl
+
+# With custom scorer model:
+python evaluation/sqa_eval/run_eval.py run \
+    --input_file eval_output/auto_search_sft/sqa_cs_v2.jsonl \
+    --scorer_model "google/gemini-2.5-flash" \
+    --max_connections 16
+```
+
+### Or via the unified evaluate.py script
+
+```bash
+python scripts/evaluate.py sqa_cs_v2 eval_output/auto_search_sft/sqa_cs_v2.jsonl
+```
+
+### SQA Response Format
 
 SQA-CS-V2 requires responses in a specific JSON format with structured sections and citations:
 
@@ -76,28 +182,21 @@ SQA-CS-V2 requires responses in a specific JSON format with structured sections 
   "sections": [
     {
       "text": "text of section 1",
-      "citations": {
-        "id": "cite 1 of sec 1",
-        "snippets": [
-          "evidence 1",
-          "evidence 2"
-        ]
-      }
-    },
-    {
-      "text": "text of section 2",
-      "citations": {
-        "id": "cite 1 of sec 2",
-        "snippets": [
-          "List of evidence"
-        ]
-      }
+      "citations": [
+        {
+          "id": "[cite_id]",
+          "title": "paper title",
+          "snippets": ["evidence 1", "evidence 2"]
+        }
+      ]
     }
   ]
 }
 ```
 
-### Evaluation Steps
+### Legacy Method (External Repo)
+
+If you prefer using the original agent-baselines repository:
 
 1. **Convert DR Tulu outputs to SQA format**:
    ```bash
@@ -125,5 +224,5 @@ SQA-CS-V2 requires responses in a specific JSON format with structured sections 
      -T scorer_model="google/gemini-2.5-flash"
    ```
 
-**Note**: Export `GOOGLE_API_KEY` and `HF_TOKEN` before running. If errors request additional tokens, dummy values can be used.
+**Note**: Export `GOOGLE_API_KEY` and `HF_TOKEN` before running.
 
