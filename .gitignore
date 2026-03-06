@@ -223,3 +223,6 @@ uv.lock
 import
 PY
 eval_output/
+agent/evaluation/sqa_eval/test.jsonl
+agent/evaluation/sqa_eval/test_asta_format.jsonl
+agent/evaluation/deep_research_bench_eval/data/

@@ -13,7 +13,7 @@ The self-contained script `run_eval.py` bundles all evaluation code and data. **
 ### Prerequisites
 
 ```bash
-pip install google-genai tqdm
+pip install google-genai tqdm huggingface_hub
 export GEMINI_API_KEY="your_gemini_api_key_here"
 ```
 
@@ -69,12 +69,10 @@ python scripts/evaluate.py deep_research_bench eval_output/auto_search_sft/deep_
 
 ### Evaluation Data
 
-Data files are automatically downloaded from [rl-research/dr-tulu-eval-data](https://huggingface.co/datasets/rl-research/dr-tulu-eval-data) on HuggingFace:
+The following data files are hosted at [`rl-research/dr-tulu-eval-data`](https://huggingface.co/datasets/rl-research/dr-tulu-eval-data) and **auto-downloaded on first run**:
 - `query.jsonl` — 100 evaluation queries (50 EN + 50 ZH)
 - `criteria.jsonl` — Task-specific evaluation criteria with weights
-- `reference.jsonl` — Reference articles for comparison (from Claude 3.7 Sonnet)
-
-If you prefer local files, place them in `data/` with the original directory structure and they will be used instead.
+- `reference.jsonl` — Reference articles for comparison (from the original DRB repo)
 
 ---
 

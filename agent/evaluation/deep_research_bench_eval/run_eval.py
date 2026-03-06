@@ -61,44 +61,62 @@ FACT_MODEL = "gemini-2.5-flash"
 RACE_MODEL = "gemini-2.5-pro"
 
 
-def _get_data_file(hf_filename: str, local_fallback: Path) -> str:
-    """Get a data file path: try local first, then download from HuggingFace."""
-    if local_fallback.exists():
-        return str(local_fallback)
+def _ensure_data_files() -> tuple:
+    """
+    Ensure DRB evaluation data files are available locally.
+    Downloads from HuggingFace if not found in local data/ directory.
+
+    Returns:
+        (criteria_file, reference_file, query_file) paths
+    """
+    criteria_file = DATA_DIR / "criteria_data" / "criteria.jsonl"
+    reference_file = DATA_DIR / "test_data" / "cleaned_data" / "reference.jsonl"
+    query_file = DATA_DIR / "prompt_data" / "query.jsonl"
+
+    # Check if all files exist locally
+    if criteria_file.exists() and reference_file.exists() and query_file.exists():
+        return criteria_file, reference_file, query_file
+
+    # Download from HuggingFace
+    logger.info(f"Downloading DRB evaluation data from {HF_EVAL_DATA_REPO}...")
     try:
         from huggingface_hub import hf_hub_download
-        path = hf_hub_download(
-            repo_id=HF_EVAL_DATA_REPO,
-            filename=hf_filename,
-            repo_type="dataset",
-        )
-        logger.info(f"Downloaded {hf_filename} from {HF_EVAL_DATA_REPO}")
-        return path
-    except Exception as e:
-        raise FileNotFoundError(
-            f"Data file not found locally at {local_fallback} and failed to download "
-            f"from {HF_EVAL_DATA_REPO}/{hf_filename}: {e}\n"
-            f"Install huggingface_hub: pip install huggingface_hub"
+    except ImportError:
+        raise ImportError(
+            "huggingface_hub required to download eval data. "
+            "Install with: pip install huggingface_hub"
         )
 
+    cache_dir = DATA_DIR / "hf_cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
 
-def get_criteria_file() -> str:
-    return _get_data_file(
-        "deep_research_bench/criteria.jsonl",
-        DATA_DIR / "criteria_data" / "criteria.jsonl",
-    )
+    hf_files = {
+        "deep_research_bench/query.jsonl": query_file,
+        "deep_research_bench/criteria.jsonl": criteria_file,
+        "deep_research_bench/reference.jsonl": reference_file,
+    }
+    for hf_path, local_path in hf_files.items():
+        if not local_path.exists():
+            logger.info(f"  Downloading {hf_path}...")
+            local_path.parent.mkdir(parents=True, exist_ok=True)
+            downloaded = hf_hub_download(
+                repo_id=HF_EVAL_DATA_REPO,
+                filename=hf_path,
+                repo_type="dataset",
+                cache_dir=str(cache_dir),
+            )
+            # Symlink or copy to expected path
+            import shutil
+            shutil.copy2(downloaded, local_path)
 
-def get_reference_file() -> str:
-    return _get_data_file(
-        "deep_research_bench/reference.jsonl",
-        DATA_DIR / "test_data" / "cleaned_data" / "reference.jsonl",
-    )
+    logger.info("DRB evaluation data ready.")
+    return criteria_file, reference_file, query_file
 
-def get_query_file() -> str:
-    return _get_data_file(
-        "deep_research_bench/query.jsonl",
-        DATA_DIR / "prompt_data" / "query.jsonl",
-    )
+
+# Resolved at runtime
+CRITERIA_FILE = None
+REFERENCE_FILE = None
+QUERY_FILE = None
 
 
 # ============================================================================
@@ -1245,13 +1263,13 @@ def run_race_evaluation(
             )
 
         # Load all data
-        all_tasks = load_jsonl(get_query_file())
+        all_tasks = load_jsonl(str(QUERY_FILE))
         all_tasks = [t for t in all_tasks if t.get("language") == language]
         if limit is not None and limit > 0:
             all_tasks = all_tasks[:limit]
 
         task_prompts = {t["prompt"] for t in all_tasks if "prompt" in t}
-        all_criteria = load_jsonl(get_criteria_file())
+        all_criteria = load_jsonl(str(CRITERIA_FILE))
         criteria_list = [c for c in all_criteria if c.get("prompt") in task_prompts]
 
         target_file = os.path.join(cleaned_data_dir, f"{task_name}.jsonl")
@@ -1265,7 +1283,7 @@ def run_race_evaluation(
             logger.warning(f"No target articles found for {language}")
             continue
 
-        all_reference = load_jsonl(get_reference_file())
+        all_reference = load_jsonl(str(REFERENCE_FILE))
         reference_list = [a for a in all_reference if a.get("prompt") in task_prompts]
 
         # Build maps
@@ -1420,7 +1438,7 @@ def run_fact_evaluation(
     raw_data = load_jsonl(scraped_path)
 
     # Load query data for language info
-    query_data = load_jsonl(get_query_file())
+    query_data = load_jsonl(str(QUERY_FILE))
     id_to_lang_map = {
         item["id"]: item.get("language")
         for item in query_data
@@ -1599,6 +1617,10 @@ Examples:
             os.path.dirname(args.input_file), f"drb_eval_{args.task_name}"
         )
     os.makedirs(args.output_dir, exist_ok=True)
+
+    # Initialize data files (download from HF if needed)
+    global CRITERIA_FILE, REFERENCE_FILE, QUERY_FILE
+    CRITERIA_FILE, REFERENCE_FILE, QUERY_FILE = _ensure_data_files()
 
     logger.info(f"=== DRB Evaluation ===")
     logger.info(f"Input: {args.input_file}")

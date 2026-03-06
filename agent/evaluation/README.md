@@ -76,9 +76,11 @@ DRB evaluation measures deep research report quality using two metrics:
 ### Prerequisites
 
 ```bash
-pip install google-genai tqdm
+pip install google-genai tqdm huggingface_hub
 export GEMINI_API_KEY="your_gemini_api_key_here"
 ```
+
+> **Note**: DRB reference data (query, criteria, reference articles) is hosted at [`rl-research/dr-tulu-eval-data`](https://huggingface.co/datasets/rl-research/dr-tulu-eval-data) and will be auto-downloaded on first run.
 
 ### Quick Start (Self-Contained — No External Repo Needed)
 
@@ -141,7 +143,7 @@ SQA-CS-V2 evaluates scientific question answering with structured citations.
 ```bash
 pip install astabench==0.3.1 inspect_ai datasets
 export GOOGLE_API_KEY="your_google_api_key_here"
-export HF_TOKEN="your_hf_token_here"   # Can be dummy if not downloading data
+export HF_TOKEN="your_hf_token_here"   # Needs access to allenai/asta-bench (gated dataset)
 ```
 
 ### Quick Start (Self-Contained — No External Repo Needed)
