@@ -308,7 +308,34 @@ def main():
         print(f"Error: File must be a JSONL file: {args.file_path}")
         sys.exit(1)
 
-    if args.task == "researchqa":
+    if args.task == "deep_research_bench":
+        # Self-contained DRB evaluation (RACE + FACT)
+        import subprocess
+        drb_script = str(Path(__file__).parent.parent / "evaluation" / "deep_research_bench_eval" / "run_eval.py")
+        task_name = Path(args.file_path).stem
+        cmd = [
+            sys.executable, drb_script,
+            "--input_file", args.file_path,
+            "--task_name", task_name,
+        ]
+        if args.save_path:
+            cmd.extend(["--output_dir", args.save_path])
+        print(f"Running DRB evaluation: {' '.join(cmd)}")
+        subprocess.run(cmd)
+    elif args.task == "sqa_cs_v2":
+        # Self-contained SQA evaluation
+        import subprocess
+        sqa_script = str(Path(__file__).parent.parent / "evaluation" / "sqa_eval" / "run_eval.py")
+        cmd = [
+            sys.executable, sqa_script,
+            "run",
+            "--input_file", args.file_path,
+        ]
+        if args.save_path:
+            cmd.extend(["--output_dir", args.save_path])
+        print(f"Running SQA evaluation: {' '.join(cmd)}")
+        subprocess.run(cmd)
+    elif args.task == "researchqa":
         evaluate_researchqa(
             args.file_path,
             args.save_path,

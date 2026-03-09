@@ -1,40 +1,97 @@
 ## Introduction
 
-We conduct external evaluation on Deep Research Bench (DRB) with [their original repository](https://github.com/Ayanami0730/deep_research_bench) to aquire the evaluation results for two different metrics: 1. Reference-based and Adaptive Criteria-driven Evaluation framework with Dynamic Weighting (RACE) and 2. Factual Abundance and Citation Trustworthiness (FACT)
+We evaluate on Deep Research Bench (DRB) to acquire results for two metrics:
+1. **RACE** (Reference-based and Adaptive Criteria-driven Evaluation framework with Dynamic Weighting) — article quality
+2. **FACT** (Factual Abundance and Citation Trustworthiness) — citation verification
 
-We provide our format conversion script and step-by-step instructions as follows.
+---
 
+## Self-Contained Evaluation (Recommended)
 
-## Steps
+The self-contained script `run_eval.py` bundles all evaluation code and data. **No external repo needed.**
+
+### Prerequisites
+
+```bash
+pip install google-genai tqdm huggingface_hub
+export GEMINI_API_KEY="your_gemini_api_key_here"
+```
+
+### Quick Start
+
+```bash
+# Full pipeline: format conversion + RACE + FACT
+python evaluation/deep_research_bench_eval/run_eval.py \
+    --input_file eval_output/auto_search_sft/deep_research_bench.jsonl \
+    --task_name my_model
+
+# RACE only:
+python evaluation/deep_research_bench_eval/run_eval.py \
+    --input_file eval_output/auto_search_sft/deep_research_bench.jsonl \
+    --task_name my_model --skip_fact
+
+# FACT only:
+python evaluation/deep_research_bench_eval/run_eval.py \
+    --input_file eval_output/auto_search_sft/deep_research_bench.jsonl \
+    --task_name my_model --skip_race
+
+# Test with limit:
+python evaluation/deep_research_bench_eval/run_eval.py \
+    --input_file eval_output/auto_search_sft/deep_research_bench.jsonl \
+    --task_name my_model --limit 2
+
+# English only / Chinese only:
+python evaluation/deep_research_bench_eval/run_eval.py \
+    --input_file eval_output/auto_search_sft/deep_research_bench.jsonl \
+    --task_name my_model --only_en
+```
+
+### Via the unified evaluate.py
+
+```bash
+python scripts/evaluate.py deep_research_bench eval_output/auto_search_sft/deep_research_bench.jsonl
+```
+
+### Output Structure
+
+```
+<output_dir>/
+├── raw_data/<task_name>.jsonl          # Formatted articles
+├── cleaned_data/<task_name>.jsonl      # Cleaned articles (citations removed)
+├── race/<task_name>/
+│   ├── raw_results.jsonl               # Per-item RACE scores
+│   └── race_result.txt                 # Aggregated RACE metrics
+└── fact/<task_name>/
+    ├── scraped.jsonl                   # Articles with scraped citation content
+    ├── validated.jsonl                 # Validated citations
+    └── fact_result.txt                 # Aggregated FACT metrics
+```
+
+### Evaluation Data
+
+The following data files are hosted at [`rl-research/dr-tulu-eval-data`](https://huggingface.co/datasets/rl-research/dr-tulu-eval-data) and **auto-downloaded on first run**:
+- `query.jsonl` — 100 evaluation queries (50 EN + 50 ZH)
+- `criteria.jsonl` — Task-specific evaluation criteria with weights
+- `reference.jsonl` — Reference articles for comparison (from the original DRB repo)
+
+---
+
+## Legacy Method (External Repo)
+
+If you prefer using the [original DRB repository](https://github.com/Ayanami0730/deep_research_bench):
 
 ### 1. Generate the DRB output from our system
-Our repository supports the generation natively. Add `deep_research_bench` to the task in the scripts, e.g., `agent/scripts/auto_search.sh`, to acquire the output. The default path will be `eval_output/auto_search_sft/deep_research_bench-ablation-s2.jsonl`
+Add `deep_research_bench` to the task in the scripts, e.g., `agent/scripts/auto_search.sh`.
 
-### 2. Conduct format conversion and place the files into the original repository
-In the original DRB evaluation, the authors use [JINA API](https://jina.ai/) to scrape the URLs in the generated deep research reports. In our pipeline, since we already acquire the URL content through our search and browering, we directly use the scraped content to pair with the sentences in the article for citation evaluation.
-
-Our format conversion code is in `drb_formatter.py`. It requires three positional arguments: 
-- input_file_path: the path to the output file from our system.
-- task_name: the identifier of this task, e.g., deep_research_bench-ablation-s2.
-- drb_repo_path: the path to the official DRB repo (details in Step 3), where the formatted data will be stored.
-
-A full example:
+### 2. Format conversion
 ```bash
 python drb_formatter.py \
     --input_file_path /path/to/drb-ablation-s2.jsonl \
-    --task_name drb-abaltion-s2 \
+    --task_name drb-ablation-s2 \
     --drb_repo_path /path/to/deep_research_bench
 ```
 
-### 3. Step up the original GitHub Repo
-
-#### 3.1. Prerequisites
-
-- Python 3.9+
-- Gemini API key (for LLM evaluation)
-- Jina API key (for web scraping in FACT evaluation)
-
-#### 3.2. Set up and create a new environment
+### 3. Set up the external repo
 
 ```bash
 git clone https://github.com/Ayanami0730/deep_research_bench
@@ -44,42 +101,16 @@ conda activate drb
 pip install -r requirements.txt
 ```
 
-🚨 **Crucial**: The original citation evaluation model is deprecated, go to `/path/to/deep_research_bench/utils/api.py` of the repo and change the `FACT_Moedel` to `gemini-2.5-flash-preview-09-2025` to avoid errors in citation evaluation.
-
-#### 3.3 API Configuration
-
-Set the required API keys as environment variables:
+🚨 **Crucial**: Change `FACT_Moedel` in `utils/api.py` to `gemini-2.5-flash-preview-09-2025`.
 
 ```bash
-# Set Gemini API key for LLM evaluation
 export GEMINI_API_KEY="your_gemini_api_key_here"
-
-# Set Jina API key for web scraping
 export JINA_API_KEY="your_jina_api_key_here"
 ```
 
-#### 1.4 Quick format guide (in the DRB repo)
-- Original query file: `data/prompt_data/query.jsonl`
-- Example output file: `data/test_data/raw_data/claude-3-7-sonnet-latest.jsonl`
-
-
-### 4. Run the evaluation and acquire the results
-
-#### 4.1. Configure the task to evaluate
-- After the setup of the original repository, copy our eval script (`run_benchmark_scraped.sh`) in this folder to the root directory of repository folder
-
-- Edit `run_benchmark_scraped.sh` and add your `task_name` (as you specified in Step 2):
-
-```bash
-TARGET_MODELS=("drb-abaltion-s2")
-```
-
-#### 4.2. Run the evaluation
-Run the evaluation under the DRB repo folder and the corresponding environment.
+### 4. Run evaluation
+Copy `run_benchmark_scraped.sh` to the DRB repo root, edit `TARGET_MODELS`, and run:
 ```bash
 bash run_benchmark_scraped.sh
 ```
-The evaluation will take around 40 minutes. You can check the progress in `output_$task_name.log`.
-
-#### 4.3. Check the results
-By default, your RACE scores (for the article) will be scored in `output_$task_name.log` in the root directory of repository folder. Your FACT scores (for the citations) will be scored in `results/fact/$task_name/fact_result.txt` under the repository folder
+Results: RACE in `output_<task>.log`, FACT in `results/fact/<task>/fact_result.txt`.

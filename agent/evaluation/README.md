@@ -63,67 +63,42 @@ for task in healthbench deep_research_bench research_qa genetic_diseases simpleq
 done
 ```
 
-For SQA-CS-V2 evaluation, see the dedicated section below.
+For SQA-CS-V2 and Deep Research Bench evaluations, see the dedicated READMEs in their subdirectories.
 
 ---
 
-## Additional instructions on SQA-CS-V2 Evaluation
+## Deep Research Bench (DRB) Evaluation
 
-SQA-CS-V2 requires responses in a specific JSON format with structured sections and citations:
+See [`deep_research_bench_eval/README.md`](deep_research_bench_eval/README.md) for full instructions.
 
-```json
-{
-  "sections": [
-    {
-      "text": "text of section 1",
-      "citations": {
-        "id": "cite 1 of sec 1",
-        "snippets": [
-          "evidence 1",
-          "evidence 2"
-        ]
-      }
-    },
-    {
-      "text": "text of section 2",
-      "citations": {
-        "id": "cite 1 of sec 2",
-        "snippets": [
-          "List of evidence"
-        ]
-      }
-    }
-  ]
-}
+```bash
+# Quick start (self-contained, no external repo needed)
+pip install google-genai tqdm huggingface_hub
+export GEMINI_API_KEY="your_key"
+
+python evaluation/deep_research_bench_eval/run_eval.py \
+    --input_file eval_output/auto_search_sft/deep_research_bench.jsonl \
+    --task_name my_model
+
+# Or via unified script:
+python scripts/evaluate.py deep_research_bench eval_output/auto_search_sft/deep_research_bench.jsonl
 ```
 
-### Evaluation Steps
+---
 
-1. **Convert DR Tulu outputs to SQA format**:
-   ```bash
-   python evaluation/sqa_eval/convert_to_asta_format.py --folder <folder_name> --file <file_name>
-   ```
+## SQA-CS-V2 Evaluation
 
-2. **Clone the evaluation repository**:
-   ```bash
-   git clone https://github.com/allenai/agent-baselines
-   cd agent-baselines
-   ```
+See [`sqa_eval/README.md`](sqa_eval/README.md) for full instructions.
 
-3. **Run evaluation**:
-   ```bash
-   uv run --extra sqa inspect eval astabench/sqa --display plain \
-     --solver agent_baselines/solvers/sqa/debug/cached_solver.py \
-     -S path=<outputfile_from_step1> \
-     -T split=test \
-     -T with_search_tools=False \
-     -T simplified_eval=true \
-     -T assess_jointly=true \
-     --max-connections 16 \
-     -T sentence_wise_cit_eval=false \
-     -T all_at_once=true \
-     -T scorer_model="google/gemini-2.5-flash"
-   ```
+```bash
+# Quick start (self-contained, no external repo needed)
+pip install uv
+export GOOGLE_API_KEY="your_key"
 
-**Note**: Export `GOOGLE_API_KEY` and `HF_TOKEN` before running. If errors request additional tokens, dummy values can be used.
+python evaluation/sqa_eval/run_eval.py run \
+    --input_file eval_output/auto_search_sft/sqa_cs_v2.jsonl
+
+# Or via unified script:
+python scripts/evaluate.py sqa_cs_v2 eval_output/auto_search_sft/sqa_cs_v2.jsonl
+```
 
