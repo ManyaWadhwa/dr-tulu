@@ -3,147 +3,142 @@
 
 # DR Tulu: Reinforcement Learning with Evolving Rubrics for Deep Research
 
-
-[**Paper**](https://allenai.org/papers/drtulu) • [**Data & Models**](https://huggingface.co/collections/rl-research/dr-tulu) • [**Blogpost**](http://allenai.org/blog/dr-tulu) • [**Video**](https://youtu.be/4i0W9qAf8K8)• [**Interactive Demo**](https://www.dr-tulu.org)
+[**Paper**](https://allenai.org/papers/drtulu) • [**Data & Models**](https://huggingface.co/collections/rl-research/dr-tulu) • [**Blogpost**](http://allenai.org/blog/dr-tulu) • [**Video**](https://youtu.be/4i0W9qAf8K8) • [**Interactive Demo**](https://www.dr-tulu.org)
 </div>
 
-DR Tulu-8B is the first open Deep Research (DR) model trained for long-form DR tasks. DR Tulu-8B matches OpenAI DR on long-form DR benchmarks.
-
-<div align="center">
-<img src="assets/rler_teaser.png" alt="DR Tulu Overview" width="800"/>
-</div>
+> The original upstream README is preserved at [`README_original.md`](README_original.md).
 
 ---
 
-## Release Notes 
-- Feburary 9, 2026: 🔥 We released a free interactive demo for DR Tulu-8B! Try it out at [dr-tulu.org](https://www.dr-tulu.org/chat)!
-- November 19, 2025: Initial code release.
-- November 25, 2025: We released our interactive CLI demo code, along with additional documentation for evaluation, training, and our new RL checkpoints.
+## Setup for New Users
 
-## Overview
+### 1. Create your `.env` file
 
-This repository contains three main components:
-
-- **[`agent/`](agent/)**: Agent library (`dr-agent-lib`) with MCP-based tool backend, high-concurrency async request management, and flexible prompting interface for developing and training deep research agents. This directory also includes evaluation scripts for benchmarking DR agents.
-
-- **[`rl/`](rl/open-instruct/)**: RL training code based on [Open-Instruct](https://github.com/allenai/open-instruct) for training deep research agents with GRPO and evolving rubrics.
-
-- **[`sft/`](sft/llama-factory/)**: SFT training code based on [LLaMA-Factory](https://github.com/hiyouga/LLaMA-Factory) for supervised fine-tuning of deep research agents.
-
-For detailed setup and usage instructions, see the README files in each subdirectory.
-
----
-
-## Quick Start: Playing with DR Tulu Interactively
-
-Try DR Tulu interactively with our CLI demo! This requires **1-2 GPUs** and takes just a few steps to set up:
-
-1. **Setup Environment**
-   ```bash
-   cd agent/
-   conda create -n dr_agent python=3.10 -y && conda activate dr_agent
-   uv pip install -e .
-   ```
-
-2. **Configure API Keys** (get free keys from the respective services)
-   ```bash
-   export SERPER_API_KEY="your_key"  # https://serper.dev/
-   export S2_API_KEY="your_key"      # https://api.semanticscholar.org/
-   export JINA_API_KEY="your_key"    # https://jina.ai/reader/
-   ```
-
-3. **Launch Interactive Demo**
-   ```bash
-   uv run --extra vllm python scripts/launch_chat.py --model rl-research/DR-Tulu-8B
-   ```
-
-The demo will auto-launch required services (MCP server and vLLM) and start an interactive chat interface. You can now ask research questions and watch DR Tulu search and synthesize answers in real-time!
-
-For more options and advanced usage, see [`agent/README.md`](agent/#interactive-chat).
-
----
-
-## Running Evaluations
-
-To benchmark DR Tulu on various tasks (HealthBench, Deep Research Bench, SimpleQA, etc.), you'll need to:
-
-1. **Launch required servers on the same node** (requires 2 GPUs):
-   ```bash
-   # Launch VLLM servers
-   CUDA_VISIBLE_DEVICES=0 vllm serve rl-research/DR-Tulu-8B --dtype auto --port 30001 --max-model-len 40960
-   CUDA_VISIBLE_DEVICES=1 vllm serve Qwen/Qwen3-8B --dtype auto --port 30002 --max-model-len 40960
-   
-   # Launch MCP server
-   python -m dr_agent.mcp_backend.main --port 8000
-   ```
-
-2. **Run evaluation script** on your desired benchmarks:
-   ```bash
-   cd agent/
-   
-   # Example: Run on all benchmarks
-   for task in healthbench deep_research_bench research_qa genetic_diseases simpleqa 2wiki webwalker; do 
-       python workflows/auto_search_sft.py \
-           generate-dataset $task \
-           --num-examples final_run \
-           --max-concurrent 20 \
-           --use-cache \
-           --config workflows/auto_search_sft.yaml \
-           --config-overrides "use_browse_agent=true,search_agent_max_tool_calls=10,browse_tool_name=jina" \
-           --output eval_output/auto_search_sft/$task.jsonl
-       
-       python scripts/evaluate.py $task eval_output/auto_search_sft/$task.jsonl
-   done
-   ```
-
-**Note**: SQA-CS-V2 and Deep Research Bench require additional conversion scripts for evaluation. See [`agent/evaluation/README.md`](agent/evaluation/) for detailed instructions.
-
-For complete evaluation instructions, benchmark descriptions, and example scripts, see [`agent/evaluation/README.md`](agent/evaluation/).
-
----
-
-## Training
-
-### Supervised Fine-Tuning (SFT)
-
-For supervised fine-tuning of deep research agents using high-quality demonstration data:
+**This is required before running anything.** Copy the example and fill in your keys:
 
 ```bash
-cd sft/llama-factory/
-# See sft/llama-factory/README.md for detailed instructions
+cp .env.example .env   # or copy from the template below
 ```
 
-See [`sft/llama-factory/README.md`](sft/llama-factory/) for complete SFT training setup and configuration.
+Edit `.env` with your actual credentials:
 
-### Reinforcement Learning (RL)
+```dotenv
+# Required
+SERPER_API_KEY=your_key_here   # https://serper.dev/          (free $50 credit)
+S2_API_KEY=your_key_here       # https://api.semanticscholar.org/  (free)
+JINA_API_KEY=your_key_here     # https://jina.ai/reader/      (1M tokens free/month)
 
-For training deep research agents with GRPO and evolving rubrics:
+# Required for downloading the model
+HF_TOKEN=your_hf_token_here    # https://huggingface.co/settings/tokens
+
+# Optional: only if using OpenAI models instead of local DR-Tulu-8B
+OPENAI_API_KEY=
+```
+
+> `.env` is listed in `.gitignore` and will never be committed.
+
+---
+
+### 2. Set up the Python environment
+
+Run once on the login node (no GPU needed):
 
 ```bash
-cd rl/open-instruct/
-# See rl/open-instruct/README.md for detailed instructions
+bash setup_env.sh
 ```
 
-See [`rl/open-instruct/README.md`](rl/open-instruct/) for complete RL training setup, including reward model training and policy optimization.
+This creates a `uv` virtual environment at `.venv/` and installs the `agent/` package with vLLM support.
 
 ---
 
-## Acknowledgments
+### 3. Run a test inference (HPC / SLURM)
 
-DR Tulu is provided by The Allen Institute for Artificial Intelligence (Ai2). The code for this project is developed in collaboration with student researchers at the University of Washington, Carnegie Mellon University, and MIT.
+The test script runs end-to-end: launches services, runs a query, saves documents + timing, and pushes results to HuggingFace.
+
+**Submit as a batch job (recommended):**
+```bash
+sbatch run_test_inference.slurm
+```
+
+**Or run interactively on a GPU node:**
+```bash
+srun --gres=gpu:1 --mem=40G --cpus-per-task=8 --pty bash
+source .venv/bin/activate
+export HF_HOME=/scratch/$USER/.cache/huggingface
+python test_inference.py --verbose
+```
+
+**Custom query:**
+```bash
+python test_inference.py \
+    --query "What are the latest findings on Alzheimer's treatment?" \
+    --hf-dataset "deepresearchediting/dr-tulu-runs" \
+    --verbose
+```
+
+**`test_inference.py` captures:**
+- Final model response
+- All retrieved documents (title, URL, snippet, text, score, source tool)
+- Per-step timing: each tool call, search phase total, overall total
+- Full agent trace
+- Pushes everything as a row to the HuggingFace dataset `deepresearchediting/dr-tulu-runs`
+
+**Options:**
+```
+--query TEXT          Research question (default: LLM alignment question)
+--vllm-port INT       vLLM server port (default: 30001)
+--mcp-port INT        MCP server port (default: 8000)
+--model TEXT          HuggingFace model ID (default: rl-research/DR-Tulu-8B)
+--max-model-len INT   Max token length for vLLM (default: 40960)
+--dataset-name TEXT   Prompt hint: healthbench, simpleqa, deep_research_bench, etc.
+--output PATH         Local JSON output path
+--hf-dataset TEXT     HuggingFace dataset to push results to
+--no-hf-push          Skip HuggingFace push
+--skip-launch         Skip launching services (if already running)
+--verbose             Show full agent reasoning trace
+```
 
 ---
 
-## Citation and Contact
+### Architecture (inference only)
 
-If you find our work useful, please cite:
-
-```bibtex
-@article{shao2025dr,
-  title={DR Tulu: Reinforcement Learning with Evolving Rubrics for Deep Research},
-  author={Shao, Rulin and Asai, Akari and Shen, Shannon Zejiang and Ivison, Hamish and Kishore, Varsha and Zhuo, Jingming and Zhao, Xinran and Park, Molly and Finlayson, Samuel G and Sontag, David and others},
-  journal={arXiv preprint arXiv:2511.19399},
-  year={2025}
-}
 ```
-If you have any questions, you can contact [Rulin Shao](https://rulinshao.github.io/), [Akari Asai](https://akariasai.github.io/), [Shannon Shen](https://www.szj.io/), and [Hamish Ivison](https://ivison.id.au/) or open a github issue. 
+Your query
+    │
+    ▼
+SearchAgent (DR-Tulu-8B via vLLM)
+    ├─► snippet_search  ──► Serper / Semantic Scholar
+    ├─► google_search   ──► Serper
+    └─► browse_webpage  ──► Jina / Crawl4AI
+    │         (up to 10 tool calls, with retrieved Documents)
+    ▼
+AnswerAgent (same model) ──► synthesises final answer
+    │
+    ▼
+Result: final_response + all documents + timing
+```
+
+All agent–tool communication goes through an **MCP server** (port 8000). The model is served locally via **vLLM** (port 30001). No data leaves your machine except the external search API calls (Serper, Jina, S2).
+
+---
+
+### Repository structure
+
+```
+dr-tulu/
+├── agent/               # Core inference library (install this)
+│   ├── dr_agent/        # Agents, tools, MCP backend, prompts
+│   └── workflows/       # AutoReasonSearchWorkflow + YAML configs
+├── rl/                  # GRPO RL training (multi-GPU, not needed for inference)
+├── sft/                 # SFT training (LLaMA-Factory, not needed for inference)
+├── test_inference.py    # Non-UI end-to-end inference script
+├── run_test_inference.slurm  # SLURM batch job
+├── setup_env.sh         # One-time environment setup
+├── .env                 # YOUR API KEYS — create this, never commit it
+├── .env.example         # Template (safe to commit)
+└── README_original.md   # Original upstream README
+```
+
+---
+
+For the original paper, training details, and evaluation benchmarks, see [`README_original.md`](README_original.md) and the subdirectory READMEs.
