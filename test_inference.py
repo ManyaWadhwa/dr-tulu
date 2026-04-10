@@ -11,8 +11,15 @@ Captures:
   (d) Pushes results to HuggingFace Hub under deepresearchediting/
 
 Usage:
+    # Single query
     python test_inference.py --query "What are the latest advances in protein folding?"
-    python test_inference.py --query "..." --hf-dataset deepresearchediting/dr-tulu-runs
+
+    # Batch from JSONL file (must have a "query" column)
+    python test_inference.py --input-file queries.jsonl
+
+    # Batch from HuggingFace dataset (must have a "query" column)
+    python test_inference.py --input-dataset org/dataset-name
+
     python test_inference.py --skip-launch --query "..."   # if servers already running
 """
 
@@ -372,6 +379,64 @@ def push_to_hf(result: dict, hf_dataset: str, hf_token: str | None):
 
 
 # ---------------------------------------------------------------------------
+# Input loading (single query, JSONL, or HuggingFace dataset)
+# ---------------------------------------------------------------------------
+
+def load_queries(args) -> list[dict]:
+    """
+    Load queries from one of three sources (mutually exclusive):
+      --query           Single query string
+      --input-file      Path to a JSONL file with a "query" column
+      --input-dataset   HuggingFace dataset name with a "query" column
+
+    Returns a list of dicts, each with at least a "query" key.
+    Extra columns from the input are preserved and passed through to the output.
+    """
+    sources = sum([
+        bool(args.input_file),
+        bool(args.input_dataset),
+    ])
+    if sources > 1:
+        log.error("Specify at most one of --query, --input-file, --input-dataset")
+        sys.exit(1)
+
+    if args.input_file:
+        path = Path(args.input_file)
+        if not path.exists():
+            log.error(f"Input file not found: {path}")
+            sys.exit(1)
+        queries = []
+        with open(path) as f:
+            for i, line in enumerate(f):
+                line = line.strip()
+                if not line:
+                    continue
+                row = json.loads(line)
+                if "query" not in row:
+                    log.error(f"Row {i} in {path} missing 'query' column")
+                    sys.exit(1)
+                queries.append(row)
+        log.info(f"Loaded {len(queries)} queries from {path}")
+        return queries
+
+    if args.input_dataset:
+        from datasets import load_dataset as hf_load
+        hf_token = os.environ.get("HF_TOKEN") or None
+        split = args.input_split or "train"
+        log.info(f"Loading dataset {args.input_dataset} (split={split}) ...")
+        ds = hf_load(args.input_dataset, split=split, token=hf_token)
+        if "query" not in ds.column_names:
+            log.error(f"Dataset {args.input_dataset} missing 'query' column. Columns: {ds.column_names}")
+            sys.exit(1)
+        queries = [row for row in ds]
+        log.info(f"Loaded {len(queries)} queries from {args.input_dataset}")
+        return queries
+
+    # Default: single --query string
+    return [{"query": args.query}]
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -380,6 +445,22 @@ def main():
     parser.add_argument(
         "--query",
         default="What are the most recent breakthroughs in large language model alignment research?",
+        help="Single query string (ignored if --input-file or --input-dataset is set)",
+    )
+    parser.add_argument(
+        "--input-file",
+        default=None,
+        help="Path to a JSONL file with a 'query' column for batch inference",
+    )
+    parser.add_argument(
+        "--input-dataset",
+        default=None,
+        help="HuggingFace dataset name with a 'query' column for batch inference",
+    )
+    parser.add_argument(
+        "--input-split",
+        default="train",
+        help="Dataset split to use when loading from --input-dataset (default: train)",
     )
     parser.add_argument("--vllm-port", type=int, default=30001)
     parser.add_argument("--mcp-port", type=int, default=8000)
