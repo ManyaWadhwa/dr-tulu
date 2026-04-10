@@ -109,7 +109,7 @@ def start_services(vllm_port: int, mcp_port: int, model_name: str, max_model_len
             stdout=mcp_log, stderr=subprocess.STDOUT, env=env,
         )
         procs.append(proc)
-        if not wait_for_port(mcp_port, timeout=120, label="MCP server"):
+        if not wait_for_port(mcp_port, timeout=300, label="MCP server"):
             log.error(f"MCP server failed. Check /scratch/mw4141/code/dr-tulu/logs/mcp_server_{mcp_port}.log")
             sys.exit(1)
 
@@ -506,46 +506,60 @@ def main():
         log.info("Skipping service launch (--skip-launch)")
 
     try:
-        result = asyncio.run(run_query(
-            query=args.query,
-            vllm_port=args.vllm_port,
-            mcp_port=args.mcp_port,
-            model_name=args.model,
-            dataset_name=args.dataset_name,
-            verbose=args.verbose,
-        ))
+        queries = load_queries(args)
+        all_results = []
 
-        # ---- Print summary ----
-        timing = result["timing"]
-        docs = result["documents"]
-        print("\n" + "=" * 70)
-        print("FINAL ANSWER")
-        print("=" * 70)
-        print(result["final_response"])
-        print("=" * 70)
-        print(f"\nTiming:")
-        print(f"  Total                : {timing['total_s']}s")
-        print(f"  Search phase         : {timing['search_phase_s']}s")
-        print(f"  Tool calls breakdown :")
-        for tool, stats in timing["by_tool"].items():
-            print(f"    {tool:30s}  {stats['calls']} calls  {stats['total_tool_runtime_s']:.1f}s total runtime")
-        print(f"\nRetrieved documents  : {len(docs)}")
-        print(f"Unique searched URLs : {len(result['searched_links'])}")
-        print(f"Unique browsed URLs  : {len(result['browsed_links'])}")
-        print(f"Tool calls           : {result['total_tool_calls']}")
-        print(f"Failed tool calls    : {result['total_failed_tool_calls']}")
+        for idx, query_row in enumerate(queries):
+            query_text = query_row["query"]
+            log.info(f"\n{'='*70}")
+            log.info(f"Query {idx+1}/{len(queries)}: {query_text[:100]}{'...' if len(query_text) > 100 else ''}")
+            log.info(f"{'='*70}")
 
-        # ---- Save locally ----
-        out_path = Path(args.output)
-        out_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(out_path, "w") as f:
-            json.dump(result, f, indent=2, default=str)
-        log.info(f"Result saved to {out_path}")
+            result = asyncio.run(run_query(
+                query=query_text,
+                vllm_port=args.vllm_port,
+                mcp_port=args.mcp_port,
+                model_name=args.model,
+                dataset_name=args.dataset_name,
+                verbose=args.verbose,
+            ))
 
-        # ---- Push to HF ----
-        if not args.no_hf_push:
-            hf_token = os.environ.get("HF_TOKEN") or None
-            push_to_hf(result, args.hf_dataset, hf_token)
+            # Carry over extra columns from the input row
+            for k, v in query_row.items():
+                if k != "query" and k not in result:
+                    result[k] = v
+
+            all_results.append(result)
+
+            # ---- Print summary ----
+            timing = result["timing"]
+            docs = result["documents"]
+            print(f"\n{'='*70}")
+            print(f"ANSWER {idx+1}/{len(queries)}")
+            print(f"{'='*70}")
+            print(result["final_response"][:500] + ("..." if len(result["final_response"]) > 500 else ""))
+            print(f"{'='*70}")
+            print(f"Timing: {timing['total_s']}s | Docs: {len(docs)} | Tool calls: {result['total_tool_calls']} | Failed: {result['total_failed_tool_calls']}")
+
+            # ---- Save incrementally (JSONL for batch, JSON for single) ----
+            out_path = Path(args.output)
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+            if len(queries) == 1:
+                with open(out_path, "w") as f:
+                    import json as _json
+                    _json.dump(result, f, indent=2, default=str)
+            else:
+                with open(out_path, "a") as f:
+                    import json as _json
+                    f.write(_json.dumps(result, default=str) + "\n")
+            log.info(f"Result {idx+1} saved to {out_path}")
+
+            # ---- Push to HF incrementally ----
+            if not args.no_hf_push:
+                hf_token = os.environ.get("HF_TOKEN") or None
+                push_to_hf(result, args.hf_dataset, hf_token)
+
+        log.info(f"\nCompleted {len(all_results)}/{len(queries)} queries.")
 
     finally:
         for proc in procs:
