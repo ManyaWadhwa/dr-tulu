@@ -76,19 +76,61 @@ python test_inference.py \
 - Full agent trace
 - Pushes everything as a row to the HuggingFace dataset `deepresearchediting/dr-tulu-runs`
 
+### Input modes
+
+`test_inference.py` accepts input in three mutually exclusive ways:
+
+**1. Single query (string)**
+```bash
+python test_inference.py --query "What are the latest findings on Alzheimer's treatment?"
+```
+
+**2. Batch from a JSONL file**
+
+Each line is a JSON object with at least a `query` field. Any extra columns are preserved and passed through to the output row.
+
+```bash
+python test_inference.py --input-file sample_queries.jsonl
+```
+
+Example `sample_queries.jsonl`:
+```jsonl
+{"query": "What are the main approaches to neural network pruning?"}
+{"query": "How does retrieval-augmented generation improve factual accuracy?", "topic": "rag"}
+```
+
+**3. Batch from a HuggingFace dataset**
+
+The dataset must have a `query` column. By default loads the `train` split — override with `--input-split`.
+
+```bash
+python test_inference.py --input-dataset org/my-queries
+python test_inference.py --input-dataset org/my-queries --input-split validation
+```
+
+**Batch behavior:**
+- Each query runs sequentially through the full pipeline (MCP server and vLLM stay up between queries).
+- Results are appended to the output file as JSONL (one row per query).
+- Each result is pushed to HuggingFace immediately after the query completes — you can watch results appear live on the dataset page as the batch progresses.
+
+---
+
 **Options:**
 ```
---query TEXT          Research question (default: LLM alignment question)
---vllm-port INT       vLLM server port (default: 30001)
---mcp-port INT        MCP server port (default: 8000)
---model TEXT          HuggingFace model ID (default: rl-research/DR-Tulu-8B)
---max-model-len INT   Max token length for vLLM (default: 40960)
---dataset-name TEXT   Prompt hint: healthbench, simpleqa, deep_research_bench, etc.
---output PATH         Local JSON output path
---hf-dataset TEXT     HuggingFace dataset to push results to
---no-hf-push          Skip HuggingFace push
---skip-launch         Skip launching services (if already running)
---verbose             Show full agent reasoning trace
+--query TEXT           Single query string (ignored if --input-file or --input-dataset is set)
+--input-file PATH      Path to a JSONL file with a "query" column
+--input-dataset NAME   HuggingFace dataset with a "query" column
+--input-split TEXT     Dataset split when using --input-dataset (default: train)
+--vllm-port INT        vLLM server port (default: 30001)
+--mcp-port INT         MCP server port (default: 8000)
+--model TEXT           HuggingFace model ID (default: rl-research/DR-Tulu-8B)
+--max-model-len INT    Max token length for vLLM (default: 40960)
+--dataset-name TEXT    Prompt hint: healthbench, simpleqa, deep_research_bench, etc.
+--output PATH          Output path — JSON for single query, JSONL for batch
+--hf-dataset TEXT      HuggingFace dataset to push results to
+--no-hf-push           Skip HuggingFace push
+--skip-launch          Skip launching services (if already running)
+--verbose              Show full agent reasoning trace
 ```
 
 ---
