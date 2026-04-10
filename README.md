@@ -1,10 +1,3 @@
-<div align="center">
-<img src="rl/open-instruct/assets/dr_tulu_logo.png" alt="DR Tulu" width="500"/>
-
-# DR Tulu: Reinforcement Learning with Evolving Rubrics for Deep Research
-
-[**Paper**](https://allenai.org/papers/drtulu) • [**Data & Models**](https://huggingface.co/collections/rl-research/dr-tulu) • [**Blogpost**](http://allenai.org/blog/dr-tulu) • [**Video**](https://youtu.be/4i0W9qAf8K8) • [**Interactive Demo**](https://www.dr-tulu.org)
-</div>
 
 > The original upstream README is preserved at [`README_original.md`](README_original.md).
 
