@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=dr-tulu-test
-#SBATCH --output=logs/test_%j.out
-#SBATCH --error=logs/test_%j.err
+#SBATCH --output=/scratch/mw4141/code/dr-tulu/logs/test_%j.out
+#SBATCH --error=/scratch/mw4141/code/dr-tulu/logs/test_%j.err
 #SBATCH --time=01:00:00
 #SBATCH --gres=gpu:1
 #SBATCH --mem=40G
@@ -12,7 +12,7 @@
 
 set -e
 
-REPO="$(cd "$(dirname "$0")" && pwd)"
+REPO=/scratch/mw4141/code/dr-tulu
 mkdir -p "$REPO/logs"
 
 echo "=== Job started on $(hostname) at $(date) ==="
